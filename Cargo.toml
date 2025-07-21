@@ -1,0 +1,17 @@
+cargo-features = ["edition2024"]
+
+[package]
+name = "soltick-solana"
+version = "0.1.0"
+edition = "2024"
+crate-type = ["cdylib"]
+
+[lib]
+name = "soltick_solana"   # hyphens → underscores
+crate-type = ["cdylib"]
+
+[dependencies]
+borsh = { version = "1.5.7", features = ["derive"] }
+solana-program = "2.3.0"
+solana-program-entrypoint = "2.3.0"
+solana-system-interface = "1.0.0"
