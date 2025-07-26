@@ -1,17 +1,17 @@
-
+use crate::instruction::EventInstruction;
+use crate::state::EventAccount;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
-    account_info::{next_account_info, AccountInfo},
+    account_info::{AccountInfo, next_account_info},
     entrypoint::ProgramResult,
     msg,
     program::invoke,
     program_error::ProgramError,
     pubkey::Pubkey,
-    sysvar::{rent::Rent, Sysvar},
+    system_program,
+    sysvar::{Sysvar, rent::Rent},
 };
 use solana_system_interface::instruction::{create_account, transfer};
-use crate::state::EventAccount;
-use crate::instruction::EventInstruction;
 
 pub fn process_instruction(
     program_id: &Pubkey,
@@ -21,9 +21,21 @@ pub fn process_instruction(
     let instruction = EventInstruction::try_from_slice(instruction_data)?;
 
     match instruction {
-        EventInstruction::CreateEvent { price, tickets_total, event_name, event_address } => {
+        EventInstruction::CreateEvent {
+            price,
+            tickets_total,
+            event_name,
+            event_address,
+        } => {
             msg!("Instruction: Create Event");
-            create_event(program_id, accounts, price, tickets_total, event_name, event_address)
+            create_event(
+                program_id,
+                accounts,
+                price,
+                tickets_total,
+                event_name,
+                event_address,
+            )
         }
         EventInstruction::BuyTicket => {
             msg!("Instruction: Buy Ticket");
@@ -47,6 +59,11 @@ fn create_event(
     let rent_sysvar_account = next_account_info(accounts_iter)?;
     let system_program_account = next_account_info(accounts_iter)?;
 
+    if *system_program_account.key != system_program::ID {
+        msg!("Expected the System Program");
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
     if !organizer_account.is_signer {
         msg!("Organizer account must be the signer");
         return Err(ProgramError::MissingRequiredSignature);
@@ -66,7 +83,8 @@ fn create_event(
         tickets_sold: 0,
         event_name: [0u8; 48],
         event_address: [0u8; 48],
-    })?.len();
+    })?
+    .len();
 
     invoke(
         &create_account(
@@ -95,7 +113,6 @@ fn create_event(
     event_data.tickets_sold = 0;
     event_data.event_name = event_name;
     event_data.event_address = event_address;
-    
 
     event_data.serialize(&mut &mut event_account.data.borrow_mut()[..])?;
 
@@ -107,16 +124,18 @@ fn create_event(
     Ok(())
 }
 
-fn buy_ticket(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
+fn buy_ticket(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     let buyer_account = next_account_info(accounts_iter)?;
     let event_account = next_account_info(accounts_iter)?;
     let organizer_account = next_account_info(accounts_iter)?;
     let system_program_account = next_account_info(accounts_iter)?;
+
+    if *system_program_account.key != system_program::ID {
+        msg!("Expected the System Program");
+        return Err(ProgramError::IncorrectProgramId);
+    }
 
     if !buyer_account.is_signer {
         msg!("Buyer account must be the signer");
@@ -151,10 +170,7 @@ fn buy_ticket(
     event_data.tickets_sold += 1;
     event_data.serialize(&mut &mut event_account.data.borrow_mut()[..])?;
 
-    msg!(
-        "Ticket purchased successfully by {}",
-        buyer_account.key
-    );
+    msg!("Ticket purchased successfully by {}", buyer_account.key);
     msg!(
         "Tickets remaining: {}",
         event_data.tickets_total - event_data.tickets_sold
