@@ -8,7 +8,7 @@ crate-type = ["cdylib"]
 
 [lib]
 name = "soltick_solana"   # hyphens → underscores
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 borsh = { version = "1.5.7", features = ["derive"] }
